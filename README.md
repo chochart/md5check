@@ -46,7 +46,7 @@ bin/md5check --md5 examples/fileMD5.txt
 
 ## Bugs
 
-* Submit problems or requests here: https://gitlab.com/md5check/issues
+* Submit problems or requests here: https://github.com/md5check/issues
 
 ## Authors
 
