@@ -1,0 +1,256 @@
+#!/bin/bash
+# VERSION 0.1.0
+#########################################################################################
+# Code to check md5 signatures of files                                                 #
+#########################################################################################
+#                                                                                       #
+# This program is free software: you can redistribute it and/or modify it under the     #
+# terms of the GNU General Public License as published by the Free Software Foundation, #
+# either version 3 of the License, or (at your option) any later version.               #
+#                                                                                       #
+#########################################################################################
+## THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, ##
+## INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A       ##
+## PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT  ##
+## HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION   ##
+## OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      ##
+## SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                              ##  
+#########################################################################################
+
+## PROGRAM CONFIGURATION BEGIN
+_author__='Corentin Hochart'
+__email__='corentin.hochart.pro@gmail.com'
+__credits__=["Corentin Hochart"]
+__license__='GPL3'
+__maintainer__='Corentin Hochart'
+__status__='Development'
+__version__='0.0.1' 
+
+filename='trasnfertdata.sh'
+
+## Declare functions
+function error {
+    filename=$0
+    error=$1
+    date=$(date "+%Y-%m-%d %H:%M:%S")
+    >&2 echo "[$date] ERROR: $error. Execution halted."
+    usage
+    exit 1
+}
+
+function warning {
+    filename=$0
+    message=$1
+    date=$(date "+%Y-%m-%d %H:%M:%S")
+    >&2 echo "[$date] INFO: $message"
+}
+
+function usage {
+    >&2 echo "usage: $filename [--help] [--input_dir INPUT_DIR]
+                [--extension EXTENSION] [--md5 MD5]"
+}
+
+function help {
+    >&2 echo "
+                ...::: $filename v$__version__ :::...
+            "
+    usage
+    >&2 echo "
+This script check file-s based on md5 signatures
+
+Optional arguments:
+    -h      --help
+                Print this help and exit.
+
+
+Required arguments:
+    -i      --input_dir
+                Directory contains sample directory. 
+                Each sample directory must be contain one or plus
+                X file-s and the corresponding X.md5. 
+                X is define by '--extension' argument.
+
+    -x      --extension
+                With '--input_dir' argument.
+                Looking only for file with the precised extension.
+                [ Default : fastq.gz ]
+
+    -m      --md5
+                File with alpha-numerical footprint of each files to
+                check. 
+            
+Written by Corentin Hochart (corentin.hochart.pro@gmail.com).
+Released under the terms of the GNU General Public License v3.
+$filename version $__version__."
+    exit 1
+}
+
+## Print wrapper usage if no arguments
+if [ ! $1 ];then
+    usage
+    exit 1
+fi
+
+## Initialisation
+start=$(date +%s)
+date=$(date)
+warning "Date : $date"
+date=$(date +%Y%m%d)
+warning "Hi $USER. Lets do some good job together"
+
+## Get options
+arguments=$@
+input_dir=''
+md5file=''
+extension='fastq.gz'
+
+while test $# -gt 0; do
+    case "$1" in
+        -h|--help)
+            help
+            exit 0;
+            ;; 
+        -i|--input_dir)
+            shift
+                if test $# -gt 0; then
+                    export input_dir=$1
+                    if ! [ -e $input_dir ];then
+                        error "$input_dir from '--input_dir' do not exist"
+                    fi
+                fi
+            shift
+            ;;
+        -x|--extension)
+            shift
+                if test $# -gt 0; then
+                    export extension=$1
+                fi
+            shift
+            ;;
+        -m|--md5)  
+            shift
+                if test $# -gt 0; then
+                    export md5file=$1
+                    if ! [ -e $md5file ];then
+                        error "$md5file from '--md5' do not exist"
+                    fi
+                fi
+            shift
+            ;; 
+        *)
+            error "Unknown option $1" 
+            break
+            ;;
+    esac
+done
+
+## Checkm options
+if [[ $input_dir == '' ]] && [[ $md5file == '' ]] ; then 
+    error "Missing arguments"
+fi
+
+if [[ $input_dir != '' ]] && [[ $md5file != '' ]] ; then 
+    error "You need to choose between '--input_dir' and '--md5' arguments"
+fi
+
+## Main code
+rm -f md5check.failed.log
+submit_dir=$(pwd)
+
+# Detect machine
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     machine=Linux;;
+    Darwin*)    machine=Mac;;
+    CYGWIN*)    machine=Cygwin;;
+    MINGW*)     machine=MinGw;;
+    *)          machine="UNKNOWN:${unameOut}"
+esac
+
+if [ ${machine} == 'Linux' ]; then
+    md5sum='md5sum'
+elif [ ${machine} == 'Mac' ]; then
+    md5sum='md5 -r'
+else 
+    md5sum='md5 -r'
+fi
+
+if [ ${machine} == 'Linux' ]; then
+
+    if [[ $md5file != '' ]] ; then
+        md5=$($md5sum --check $md5file)
+        for md5res in $(echo $md5 | sed 's/: /:,/g')
+        do
+            md5res=$(echo $md5res | sed 's/:,/: /g')
+            echo $md5res
+            if [[ $md5res == *"FAILED"* ]];then 
+                echo $md5res >> md5check.failed.log
+            fi
+        done 
+    else 
+        for sample in $(ls -d $input_dir/*/)
+        do
+            cd $sample 
+            for file in $(ls *$extension)
+            do
+                if [ -e $file.md5 ]; then
+                    md5res=$($md5sum --check $file.md5)
+                    echo $md5res
+                    if [[ $md5res == *"FAILED"* ]]; then
+                        echo $md5res >> $submit_dir/md5check.failed.log
+                    fi
+                else 
+                    warning "No found md5 file for $file file"
+                fi
+            done
+            cd $submit_dir
+        done
+    fi
+
+else 
+
+    if [[ $md5file != '' ]] ; then
+        for line in $(cat $md5file | sed 's/  /,/')
+        do
+            md5=$(echo $line | cut -f 1 -d',')
+            file=$(echo $line | cut -f 2 -d',')
+            md5compute=$($md5sum $file | cut -f 1 -d ' ')
+            if [[ $md5 == $md5compute ]]; then 
+                echo "$file: OK"
+            else 
+                echo "$file: FAILED"
+                echo "$file: FAILED" >> md5check.failed.log
+            fi
+        done
+    else 
+        for sample in $(ls -d $input_dir/*/)
+        do
+            cd $sample 
+            for file in $(ls *$extension)
+            do
+                if [ -e $file.md5 ]; then
+                    md5=$(cut -f 1 -d ' ' $file.md5)
+                    file=$(cat $file.md5 | rev | cut -f 1 -d ' ' | rev)
+                    md5compute=$($md5sum $file | cut -f 1 -d ' ')
+                    if [[ $md5 == $md5compute ]]; then 
+                        echo "$file: OK"
+                    else 
+                        echo "$file: FAILED"
+                        echo "$file: FAILED" >> md5check.failed.log
+                    fi
+                else 
+                    warning "No found md5 file for $file file"
+                fi
+            done
+            cd $submit_dir
+        done
+    fi
+
+fi
+
+## Exit code
+warning "$filename done"
+end=$(date +%s)
+warning "Runtime: $((end-start)) sec"
+
+exit 0

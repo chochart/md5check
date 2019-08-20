@@ -1,0 +1,4 @@
+a1cb0e009d89fa7b5dc13269b6aff317  examples/Sample_1/Sample_1_R1.fastq.gz
+87d24537273667525ac4c8b308391876  examples/Sample_1/Sample_1_R2.fastq.gz
+b973ecace2b66ff82402e8c9daca4afe  examples/Sample_2/Sample_2_R1.fastq.gz
+d25cc84cd4d66b4b71c1b7455bb782a6  examples/Sample_2/Sample_2_R2.fastq.gz
